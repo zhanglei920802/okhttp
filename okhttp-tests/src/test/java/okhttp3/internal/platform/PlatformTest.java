@@ -20,16 +20,18 @@ import org.junit.Test;
 import static org.junit.Assert.assertEquals;
 
 public class PlatformTest {
-  @Test public void alwaysBuilds() {
-    new Platform();
-  }
+    @Test
+    public void alwaysBuilds() {
+        new Platform();
+    }
 
-  /** Guard against the default value changing by accident. */
-  @Test public void defaultPrefix() {
-    assertEquals("OkHttp", new Platform().getPrefix());
-  }
+    /** Guard against the default value changing by accident. */
+    @Test
+    public void defaultPrefix() {
+        assertEquals("OkHttp", new Platform().getPrefix());
+    }
 
-  public static String getPlatform() {
-    return System.getProperty("okhttp.platform", "platform");
-  }
+    public static String getPlatform() {
+        return System.getProperty("okhttp.platform", "platform");
+    }
 }

@@ -20,9 +20,11 @@ import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
+
 import okhttp3.Call;
 import okhttp3.Callback;
 import okhttp3.Dispatcher;
@@ -34,64 +36,70 @@ import okhttp3.ResponseBody;
 import okhttp3.internal.tls.SslClient;
 
 class OkHttpAsync implements HttpClient {
-  private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = false;
 
-  private final AtomicInteger requestsInFlight = new AtomicInteger();
+    private final AtomicInteger requestsInFlight = new AtomicInteger();
 
-  private OkHttpClient client;
-  private Callback callback;
-  private int concurrencyLevel;
-  private int targetBacklog;
+    private OkHttpClient client;
+    private Callback callback;
+    private int concurrencyLevel;
+    private int targetBacklog;
 
-  @Override public void prepare(final Benchmark benchmark) {
-    concurrencyLevel = benchmark.concurrencyLevel;
-    targetBacklog = benchmark.targetBacklog;
+    @Override
+    public void prepare(final Benchmark benchmark) {
+        concurrencyLevel = benchmark.concurrencyLevel;
+        targetBacklog = benchmark.targetBacklog;
 
-    client = new OkHttpClient.Builder()
-        .protocols(benchmark.protocols)
-        .dispatcher(new Dispatcher(new ThreadPoolExecutor(benchmark.concurrencyLevel,
-            benchmark.concurrencyLevel, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>())))
-        .build();
+        client = new OkHttpClient.Builder()
+                .protocols(benchmark.protocols)
+                .dispatcher(new Dispatcher(new ThreadPoolExecutor(benchmark.concurrencyLevel,
+                        benchmark.concurrencyLevel, 60, TimeUnit.SECONDS, new LinkedBlockingQueue<Runnable>())))
+                .build();
 
-    if (benchmark.tls) {
-      SslClient sslClient = SslClient.localhost();
-      SSLSocketFactory socketFactory = sslClient.socketFactory;
-      HostnameVerifier hostnameVerifier = new HostnameVerifier() {
-        @Override public boolean verify(String s, SSLSession session) {
-          return true;
+        if (benchmark.tls) {
+            SslClient sslClient = SslClient.localhost();
+            SSLSocketFactory socketFactory = sslClient.socketFactory;
+            HostnameVerifier hostnameVerifier = new HostnameVerifier() {
+                @Override
+                public boolean verify(String s, SSLSession session) {
+                    return true;
+                }
+            };
+            client = client.newBuilder()
+                           .sslSocketFactory(socketFactory, sslClient.trustManager)
+                           .hostnameVerifier(hostnameVerifier)
+                           .build();
         }
-      };
-      client = client.newBuilder()
-          .sslSocketFactory(socketFactory, sslClient.trustManager)
-          .hostnameVerifier(hostnameVerifier)
-          .build();
+
+        callback = new Callback() {
+            @Override
+            public void onFailure(Call call, IOException e) {
+                System.out.println("Failed: " + e);
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) throws IOException {
+                ResponseBody body = response.body();
+                long total = SynchronousHttpClient.readAllAndClose(body.byteStream());
+                long finish = System.nanoTime();
+                if (VERBOSE) {
+                    long start = (Long) response.request().tag();
+                    System.out.printf("Transferred % 8d bytes in %4d ms%n",
+                            total, TimeUnit.NANOSECONDS.toMillis(finish - start));
+                }
+                requestsInFlight.decrementAndGet();
+            }
+        };
     }
 
-    callback = new Callback() {
-      @Override public void onFailure(Call call, IOException e) {
-        System.out.println("Failed: " + e);
-      }
+    @Override
+    public void enqueue(HttpUrl url) throws Exception {
+        requestsInFlight.incrementAndGet();
+        client.newCall(new Request.Builder().tag(System.nanoTime()).url(url).build()).enqueue(callback);
+    }
 
-      @Override public void onResponse(Call call, Response response) throws IOException {
-        ResponseBody body = response.body();
-        long total = SynchronousHttpClient.readAllAndClose(body.byteStream());
-        long finish = System.nanoTime();
-        if (VERBOSE) {
-          long start = (Long) response.request().tag();
-          System.out.printf("Transferred % 8d bytes in %4d ms%n",
-              total, TimeUnit.NANOSECONDS.toMillis(finish - start));
-        }
-        requestsInFlight.decrementAndGet();
-      }
-    };
-  }
-
-  @Override public void enqueue(HttpUrl url) throws Exception {
-    requestsInFlight.incrementAndGet();
-    client.newCall(new Request.Builder().tag(System.nanoTime()).url(url).build()).enqueue(callback);
-  }
-
-  @Override public synchronized boolean acceptingJobs() {
-    return requestsInFlight.get() < (concurrencyLevel + targetBacklog);
-  }
+    @Override
+    public synchronized boolean acceptingJobs() {
+        return requestsInFlight.get() < (concurrencyLevel + targetBacklog);
+    }
 }

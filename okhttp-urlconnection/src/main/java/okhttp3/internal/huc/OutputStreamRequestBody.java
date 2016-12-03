@@ -20,6 +20,7 @@ import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.net.ProtocolException;
 import java.net.SocketTimeoutException;
+
 import okhttp3.MediaType;
 import okhttp3.Request;
 import okhttp3.RequestBody;
@@ -33,79 +34,85 @@ import okio.Timeout;
  * stream.
  */
 abstract class OutputStreamRequestBody extends RequestBody {
-  private Timeout timeout;
-  private long expectedContentLength;
-  private OutputStream outputStream;
-  boolean closed;
+    private Timeout timeout;
+    private long expectedContentLength;
+    private OutputStream outputStream;
+    boolean closed;
 
-  protected void initOutputStream(final BufferedSink sink, final long expectedContentLength) {
-    this.timeout = sink.timeout();
-    this.expectedContentLength = expectedContentLength;
+    protected void initOutputStream(final BufferedSink sink, final long expectedContentLength) {
+        this.timeout = sink.timeout();
+        this.expectedContentLength = expectedContentLength;
 
-    // An output stream that writes to sink. If expectedContentLength is not -1, then this expects
-    // exactly that many bytes to be written.
-    this.outputStream = new OutputStream() {
-      private long bytesReceived;
+        // An output stream that writes to sink. If expectedContentLength is not -1, then this expects
+        // exactly that many bytes to be written.
+        this.outputStream = new OutputStream() {
+            private long bytesReceived;
 
-      @Override public void write(int b) throws IOException {
-        write(new byte[] {(byte) b}, 0, 1);
-      }
+            @Override
+            public void write(int b) throws IOException {
+                write(new byte[]{(byte) b}, 0, 1);
+            }
 
-      @Override public void write(byte[] source, int offset, int byteCount) throws IOException {
-        if (closed) throw new IOException("closed"); // Not IllegalStateException!
+            @Override
+            public void write(byte[] source, int offset, int byteCount) throws IOException {
+                if (closed) throw new IOException("closed"); // Not IllegalStateException!
 
-        if (expectedContentLength != -1L && bytesReceived + byteCount > expectedContentLength) {
-          throw new ProtocolException("expected " + expectedContentLength
-              + " bytes but received " + bytesReceived + byteCount);
-        }
+                if (expectedContentLength != -1L && bytesReceived + byteCount > expectedContentLength) {
+                    throw new ProtocolException("expected " + expectedContentLength
+                            + " bytes but received " + bytesReceived + byteCount);
+                }
 
-        bytesReceived += byteCount;
-        try {
-          sink.write(source, offset, byteCount);
-        } catch (InterruptedIOException e) {
-          throw new SocketTimeoutException(e.getMessage());
-        }
-      }
+                bytesReceived += byteCount;
+                try {
+                    sink.write(source, offset, byteCount);
+                } catch (InterruptedIOException e) {
+                    throw new SocketTimeoutException(e.getMessage());
+                }
+            }
 
-      @Override public void flush() throws IOException {
-        if (closed) return; // Weird, but consistent with historical behavior.
-        sink.flush();
-      }
+            @Override
+            public void flush() throws IOException {
+                if (closed) return; // Weird, but consistent with historical behavior.
+                sink.flush();
+            }
 
-      @Override public void close() throws IOException {
-        closed = true;
+            @Override
+            public void close() throws IOException {
+                closed = true;
 
-        if (expectedContentLength != -1L && bytesReceived < expectedContentLength) {
-          throw new ProtocolException("expected " + expectedContentLength
-              + " bytes but received " + bytesReceived);
-        }
+                if (expectedContentLength != -1L && bytesReceived < expectedContentLength) {
+                    throw new ProtocolException("expected " + expectedContentLength
+                            + " bytes but received " + bytesReceived);
+                }
 
-        sink.close();
-      }
-    };
-  }
+                sink.close();
+            }
+        };
+    }
 
-  public final OutputStream outputStream() {
-    return outputStream;
-  }
+    public final OutputStream outputStream() {
+        return outputStream;
+    }
 
-  public final Timeout timeout() {
-    return timeout;
-  }
+    public final Timeout timeout() {
+        return timeout;
+    }
 
-  public final boolean isClosed() {
-    return closed;
-  }
+    public final boolean isClosed() {
+        return closed;
+    }
 
-  @Override public long contentLength() throws IOException {
-    return expectedContentLength;
-  }
+    @Override
+    public long contentLength() throws IOException {
+        return expectedContentLength;
+    }
 
-  @Override public final MediaType contentType() {
-    return null; // Let the caller provide this in a regular header.
-  }
+    @Override
+    public final MediaType contentType() {
+        return null; // Let the caller provide this in a regular header.
+    }
 
-  public Request prepareToSendRequest(Request request) throws IOException {
-    return request;
-  }
+    public Request prepareToSendRequest(Request request) throws IOException {
+        return request;
+    }
 }

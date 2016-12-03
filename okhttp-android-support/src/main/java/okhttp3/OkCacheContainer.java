@@ -20,5 +20,5 @@ package okhttp3;
  * Cache}.
  */
 public interface OkCacheContainer {
-  Cache getCache();
+    Cache getCache();
 }

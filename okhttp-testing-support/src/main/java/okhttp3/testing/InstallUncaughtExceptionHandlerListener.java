@@ -17,6 +17,7 @@ package okhttp3.testing;
 
 import java.io.PrintWriter;
 import java.io.StringWriter;
+
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 import org.junit.runner.notification.RunListener;
@@ -28,37 +29,41 @@ import org.junit.runner.notification.RunListener;
  */
 public class InstallUncaughtExceptionHandlerListener extends RunListener {
 
-  private Thread.UncaughtExceptionHandler oldDefaultUncaughtExceptionHandler;
-  private Description lastTestStarted;
+    private Thread.UncaughtExceptionHandler oldDefaultUncaughtExceptionHandler;
+    private Description lastTestStarted;
 
-  @Override public void testRunStarted(Description description) throws Exception {
-    System.err.println("Installing aggressive uncaught exception handler");
-    oldDefaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
-    Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-      @Override public void uncaughtException(Thread thread, Throwable throwable) {
-        StringWriter errorText = new StringWriter(256);
-        errorText.append("Uncaught exception in OkHttp thread \"");
-        errorText.append(thread.getName());
-        errorText.append("\"\n");
-        throwable.printStackTrace(new PrintWriter(errorText));
-        errorText.append("\n");
-        if (lastTestStarted != null) {
-          errorText.append("Last test to start was: ");
-          errorText.append(lastTestStarted.getDisplayName());
-          errorText.append("\n");
-        }
-        System.err.print(errorText.toString());
-        System.exit(-1);
-      }
-    });
-  }
+    @Override
+    public void testRunStarted(Description description) throws Exception {
+        System.err.println("Installing aggressive uncaught exception handler");
+        oldDefaultUncaughtExceptionHandler = Thread.getDefaultUncaughtExceptionHandler();
+        Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
+            @Override
+            public void uncaughtException(Thread thread, Throwable throwable) {
+                StringWriter errorText = new StringWriter(256);
+                errorText.append("Uncaught exception in OkHttp thread \"");
+                errorText.append(thread.getName());
+                errorText.append("\"\n");
+                throwable.printStackTrace(new PrintWriter(errorText));
+                errorText.append("\n");
+                if (lastTestStarted != null) {
+                    errorText.append("Last test to start was: ");
+                    errorText.append(lastTestStarted.getDisplayName());
+                    errorText.append("\n");
+                }
+                System.err.print(errorText.toString());
+                System.exit(-1);
+            }
+        });
+    }
 
-  @Override public void testStarted(Description description) throws Exception {
-    lastTestStarted = description;
-  }
+    @Override
+    public void testStarted(Description description) throws Exception {
+        lastTestStarted = description;
+    }
 
-  @Override public void testRunFinished(Result result) throws Exception {
-    Thread.setDefaultUncaughtExceptionHandler(oldDefaultUncaughtExceptionHandler);
-    System.err.println("Uninstalled aggressive uncaught exception handler");
-  }
+    @Override
+    public void testRunFinished(Result result) throws Exception {
+        Thread.setDefaultUncaughtExceptionHandler(oldDefaultUncaughtExceptionHandler);
+        System.err.println("Uninstalled aggressive uncaught exception handler");
+    }
 }

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 package okhttp3.internal;
+
 import java.io.IOException;
 import java.net.URL;
 
@@ -23,10 +24,10 @@ import java.net.URL;
  * @deprecated use {@link okhttp3.Interceptor} for non-HttpURLConnection filtering.
  */
 public interface URLFilter {
-  /**
-   * Check whether request to the provided URL is permitted to be issued.
-   *
-   * @throws IOException if the request to the provided URL is not permitted.
-   */
-  void checkURLPermitted(URL url) throws IOException;
+    /**
+     * Check whether request to the provided URL is permitted to be issued.
+     *
+     * @throws IOException if the request to the provided URL is not permitted.
+     */
+    void checkURLPermitted(URL url) throws IOException;
 }

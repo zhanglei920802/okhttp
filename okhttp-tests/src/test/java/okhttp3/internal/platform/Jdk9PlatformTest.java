@@ -23,20 +23,20 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeTrue;
 
 public class Jdk9PlatformTest {
-  @Test
-  public void buildsWhenJdk9() {
-    assumeTrue(getPlatform().equals("jdk9"));
+    @Test
+    public void buildsWhenJdk9() {
+        assumeTrue(getPlatform().equals("jdk9"));
 
-    assertNotNull(Jdk9Platform.buildIfSupported());
-  }
+        assertNotNull(Jdk9Platform.buildIfSupported());
+    }
 
-  @Test
-  public void findsAlpnMethods() {
-    assumeTrue(getPlatform().equals("jdk9"));
+    @Test
+    public void findsAlpnMethods() {
+        assumeTrue(getPlatform().equals("jdk9"));
 
-    Jdk9Platform platform = Jdk9Platform.buildIfSupported();
+        Jdk9Platform platform = Jdk9Platform.buildIfSupported();
 
-    assertEquals("getApplicationProtocol", platform.getProtocolMethod.getName());
-    assertEquals("setApplicationProtocols", platform.setProtocolMethod.getName());
-  }
+        assertEquals("getApplicationProtocol", platform.getProtocolMethod.getName());
+        assertEquals("setApplicationProtocols", platform.setProtocolMethod.getName());
+    }
 }

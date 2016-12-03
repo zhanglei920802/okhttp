@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.util.Collections;
 import java.util.List;
+
 import okhttp3.Dns;
 
 /**
@@ -26,8 +27,9 @@ import okhttp3.Dns;
  * fallbacks to prevent the host machine's various IP addresses from interfering.
  */
 public class SingleInetAddressDns implements Dns {
-  @Override public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-    List<InetAddress> addresses = Dns.SYSTEM.lookup(hostname);
-    return Collections.singletonList(addresses.get(0));
-  }
+    @Override
+    public List<InetAddress> lookup(String hostname) throws UnknownHostException {
+        List<InetAddress> addresses = Dns.SYSTEM.lookup(hostname);
+        return Collections.singletonList(addresses.get(0));
+    }
 }

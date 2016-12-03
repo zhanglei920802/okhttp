@@ -22,10 +22,10 @@ import static org.junit.Assert.assertNotNull;
 import static org.junit.Assume.assumeTrue;
 
 public class JdkWithJettyBootPlatformTest {
-  @Test
-  public void testBuildsWithJettyBoot() {
-    assumeTrue(getPlatform().equals("jdk-with-jetty-boot"));
+    @Test
+    public void testBuildsWithJettyBoot() {
+        assumeTrue(getPlatform().equals("jdk-with-jetty-boot"));
 
-    assertNotNull(JdkWithJettyBootPlatform.buildIfSupported());
-  }
+        assertNotNull(JdkWithJettyBootPlatform.buildIfSupported());
+    }
 }

@@ -16,7 +16,9 @@
 package okhttp3.internal.http2;
 
 import java.util.Collection;
+
 import okhttp3.internal.http2.hpackjson.Story;
+
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
@@ -26,17 +28,17 @@ import static okhttp3.internal.http2.hpackjson.HpackJsonUtil.storiesForCurrentDr
 @RunWith(Parameterized.class)
 public class HpackDecodeInteropTest extends HpackDecodeTestBase {
 
-  public HpackDecodeInteropTest(Story story) {
-    super(story);
-  }
+    public HpackDecodeInteropTest(Story story) {
+        super(story);
+    }
 
-  @Parameterized.Parameters(name = "{0}")
-  public static Collection<Story[]> createStories() throws Exception {
-    return createStories(storiesForCurrentDraft());
-  }
+    @Parameterized.Parameters(name = "{0}")
+    public static Collection<Story[]> createStories() throws Exception {
+        return createStories(storiesForCurrentDraft());
+    }
 
-  @Test
-  public void testGoodDecoderInterop() throws Exception {
-    testDecoder();
-  }
+    @Test
+    public void testGoodDecoderInterop() throws Exception {
+        testDecoder();
+    }
 }

@@ -17,7 +17,9 @@ package okhttp3.internal;
 
 import java.net.MalformedURLException;
 import java.net.UnknownHostException;
+
 import javax.net.ssl.SSLSocket;
+
 import okhttp3.Address;
 import okhttp3.Call;
 import okhttp3.ConnectionPool;
@@ -37,35 +39,35 @@ import okhttp3.internal.connection.StreamAllocation;
  */
 public abstract class Internal {
 
-  public static void initializeInstanceForTests() {
-    // Needed in tests to ensure that the instance is actually pointing to something.
-    new OkHttpClient();
-  }
+    public static void initializeInstanceForTests() {
+        // Needed in tests to ensure that the instance is actually pointing to something.
+        new OkHttpClient();
+    }
 
-  public static Internal instance;
+    public static Internal instance;
 
-  public abstract void addLenient(Headers.Builder builder, String line);
+    public abstract void addLenient(Headers.Builder builder, String line);
 
-  public abstract void addLenient(Headers.Builder builder, String name, String value);
+    public abstract void addLenient(Headers.Builder builder, String name, String value);
 
-  public abstract void setCache(OkHttpClient.Builder builder, InternalCache internalCache);
+    public abstract void setCache(OkHttpClient.Builder builder, InternalCache internalCache);
 
-  public abstract RealConnection get(
-      ConnectionPool pool, Address address, StreamAllocation streamAllocation);
+    public abstract RealConnection get(
+            ConnectionPool pool, Address address, StreamAllocation streamAllocation);
 
-  public abstract void put(ConnectionPool pool, RealConnection connection);
+    public abstract void put(ConnectionPool pool, RealConnection connection);
 
-  public abstract boolean connectionBecameIdle(ConnectionPool pool, RealConnection connection);
+    public abstract boolean connectionBecameIdle(ConnectionPool pool, RealConnection connection);
 
-  public abstract RouteDatabase routeDatabase(ConnectionPool connectionPool);
+    public abstract RouteDatabase routeDatabase(ConnectionPool connectionPool);
 
-  public abstract void apply(ConnectionSpec tlsConfiguration, SSLSocket sslSocket,
-      boolean isFallback);
+    public abstract void apply(ConnectionSpec tlsConfiguration, SSLSocket sslSocket,
+            boolean isFallback);
 
-  public abstract HttpUrl getHttpUrlChecked(String url)
-      throws MalformedURLException, UnknownHostException;
+    public abstract HttpUrl getHttpUrlChecked(String url)
+            throws MalformedURLException, UnknownHostException;
 
-  public abstract StreamAllocation streamAllocation(Call call);
+    public abstract StreamAllocation streamAllocation(Call call);
 
-  public abstract Call newWebSocketCall(OkHttpClient client, Request request);
+    public abstract Call newWebSocketCall(OkHttpClient client, Request request);
 }

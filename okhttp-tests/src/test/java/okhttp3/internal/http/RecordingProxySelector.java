@@ -24,29 +24,32 @@ import java.net.URI;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+
 import okhttp3.internal.Util;
 
 import static org.junit.Assert.assertEquals;
 
 public final class RecordingProxySelector extends ProxySelector {
-  public final List<Proxy> proxies = new ArrayList<>();
-  public final List<URI> requestedUris = new ArrayList<>();
-  public final List<String> failures = new ArrayList<>();
+    public final List<Proxy> proxies = new ArrayList<>();
+    public final List<URI> requestedUris = new ArrayList<>();
+    public final List<String> failures = new ArrayList<>();
 
-  @Override public List<Proxy> select(URI uri) {
-    requestedUris.add(uri);
-    return proxies;
-  }
+    @Override
+    public List<Proxy> select(URI uri) {
+        requestedUris.add(uri);
+        return proxies;
+    }
 
-  public void assertRequests(URI... expectedUris) {
-    assertEquals(Arrays.asList(expectedUris), requestedUris);
-    requestedUris.clear();
-  }
+    public void assertRequests(URI... expectedUris) {
+        assertEquals(Arrays.asList(expectedUris), requestedUris);
+        requestedUris.clear();
+    }
 
-  @Override public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
-    InetSocketAddress socketAddress = (InetSocketAddress) sa;
-    failures.add(
-        Util.format("%s %s:%d %s", uri, socketAddress.getHostName(), socketAddress.getPort(),
-            ioe.getMessage()));
-  }
+    @Override
+    public void connectFailed(URI uri, SocketAddress sa, IOException ioe) {
+        InetSocketAddress socketAddress = (InetSocketAddress) sa;
+        failures.add(
+                Util.format("%s %s:%d %s", uri, socketAddress.getHostName(), socketAddress.getPort(),
+                        ioe.getMessage()));
+    }
 }

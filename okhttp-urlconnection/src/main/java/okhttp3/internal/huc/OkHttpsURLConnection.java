@@ -17,55 +17,62 @@
 package okhttp3.internal.huc;
 
 import java.net.URL;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.SSLSocketFactory;
+
 import okhttp3.Handshake;
 import okhttp3.OkHttpClient;
 import okhttp3.internal.URLFilter;
 
 public final class OkHttpsURLConnection extends DelegatingHttpsURLConnection {
-  private final OkHttpURLConnection delegate;
+    private final OkHttpURLConnection delegate;
 
-  public OkHttpsURLConnection(URL url, OkHttpClient client) {
-    this(new OkHttpURLConnection(url, client));
-  }
-
-  public OkHttpsURLConnection(URL url, OkHttpClient client, URLFilter filter) {
-    this(new OkHttpURLConnection(url, client, filter));
-  }
-
-  public OkHttpsURLConnection(OkHttpURLConnection delegate) {
-    super(delegate);
-    this.delegate = delegate;
-  }
-
-  @Override protected Handshake handshake() {
-    if (delegate.call == null) {
-      throw new IllegalStateException("Connection has not yet been established");
+    public OkHttpsURLConnection(URL url, OkHttpClient client) {
+        this(new OkHttpURLConnection(url, client));
     }
 
-    return delegate.handshake;
-  }
+    public OkHttpsURLConnection(URL url, OkHttpClient client, URLFilter filter) {
+        this(new OkHttpURLConnection(url, client, filter));
+    }
 
-  @Override public void setHostnameVerifier(HostnameVerifier hostnameVerifier) {
-    delegate.client = delegate.client.newBuilder()
-        .hostnameVerifier(hostnameVerifier)
-        .build();
-  }
+    public OkHttpsURLConnection(OkHttpURLConnection delegate) {
+        super(delegate);
+        this.delegate = delegate;
+    }
 
-  @Override public HostnameVerifier getHostnameVerifier() {
-    return delegate.client.hostnameVerifier();
-  }
+    @Override
+    protected Handshake handshake() {
+        if (delegate.call == null) {
+            throw new IllegalStateException("Connection has not yet been established");
+        }
 
-  @Override public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
-    // This fails in JDK 9 because OkHttp is unable to extract the trust manager.
-    delegate.client = delegate.client.newBuilder()
-        .sslSocketFactory(sslSocketFactory)
-        .build();
-  }
+        return delegate.handshake;
+    }
 
-  @Override public SSLSocketFactory getSSLSocketFactory() {
-    return delegate.client.sslSocketFactory();
-  }
+    @Override
+    public void setHostnameVerifier(HostnameVerifier hostnameVerifier) {
+        delegate.client = delegate.client.newBuilder()
+                                         .hostnameVerifier(hostnameVerifier)
+                                         .build();
+    }
+
+    @Override
+    public HostnameVerifier getHostnameVerifier() {
+        return delegate.client.hostnameVerifier();
+    }
+
+    @Override
+    public void setSSLSocketFactory(SSLSocketFactory sslSocketFactory) {
+        // This fails in JDK 9 because OkHttp is unable to extract the trust manager.
+        delegate.client = delegate.client.newBuilder()
+                                         .sslSocketFactory(sslSocketFactory)
+                                         .build();
+    }
+
+    @Override
+    public SSLSocketFactory getSSLSocketFactory() {
+        return delegate.client.sslSocketFactory();
+    }
 
 }

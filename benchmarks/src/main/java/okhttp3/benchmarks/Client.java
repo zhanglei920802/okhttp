@@ -16,35 +16,40 @@
 package okhttp3.benchmarks;
 
 enum Client {
-  OkHttp {
-    @Override HttpClient create() {
-      return new OkHttp();
-    }
-  },
+    OkHttp {
+        @Override
+        HttpClient create() {
+            return new OkHttp();
+        }
+    },
 
-  OkHttpAsync {
-    @Override HttpClient create() {
-      return new OkHttpAsync();
-    }
-  },
+    OkHttpAsync {
+        @Override
+        HttpClient create() {
+            return new OkHttpAsync();
+        }
+    },
 
-  Apache {
-    @Override HttpClient create() {
-      return new ApacheHttpClient();
-    }
-  },
+    Apache {
+        @Override
+        HttpClient create() {
+            return new ApacheHttpClient();
+        }
+    },
 
-  UrlConnection {
-    @Override HttpClient create() {
-      return new UrlConnection();
-    }
-  },
+    UrlConnection {
+        @Override
+        HttpClient create() {
+            return new UrlConnection();
+        }
+    },
 
-  Netty {
-    @Override HttpClient create() {
-      return new NettyHttpClient();
-    }
-  };
+    Netty {
+        @Override
+        HttpClient create() {
+            return new NettyHttpClient();
+        }
+    };
 
-  abstract HttpClient create();
+    abstract HttpClient create();
 }

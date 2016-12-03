@@ -18,8 +18,10 @@ package okhttp3.internal.http2;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Random;
+
 import okio.Buffer;
 import okio.ByteString;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -27,24 +29,25 @@ import static org.junit.Assert.assertTrue;
 
 /** Original version of this class was lifted from {@code com.twitter.hpack.HuffmanTest}. */
 public final class HuffmanTest {
-  @Test public void roundTripForRequestAndResponse() throws IOException {
-    String s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    for (int i = 0; i < s.length(); i++) {
-      assertRoundTrip(ByteString.encodeUtf8(s.substring(0, i)));
+    @Test
+    public void roundTripForRequestAndResponse() throws IOException {
+        String s = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+        for (int i = 0; i < s.length(); i++) {
+            assertRoundTrip(ByteString.encodeUtf8(s.substring(0, i)));
+        }
+
+        Random random = new Random(123456789L);
+        byte[] buf = new byte[4096];
+        random.nextBytes(buf);
+        assertRoundTrip(ByteString.of(buf));
     }
 
-    Random random = new Random(123456789L);
-    byte[] buf = new byte[4096];
-    random.nextBytes(buf);
-    assertRoundTrip(ByteString.of(buf));
-  }
+    private void assertRoundTrip(ByteString data) throws IOException {
+        Buffer buffer = new Buffer();
+        Huffman.get().encode(data, buffer);
+        assertEquals(buffer.size(), Huffman.get().encodedLength(data));
 
-  private void assertRoundTrip(ByteString data) throws IOException {
-    Buffer buffer = new Buffer();
-    Huffman.get().encode(data, buffer);
-    assertEquals(buffer.size(), Huffman.get().encodedLength(data));
-
-    byte[] decodedBytes = Huffman.get().decode(buffer.readByteArray());
-    assertTrue(Arrays.equals(data.toByteArray(), decodedBytes));
-  }
+        byte[] decodedBytes = Huffman.get().decode(buffer.readByteArray());
+        assertTrue(Arrays.equals(data.toByteArray(), decodedBytes));
+    }
 }

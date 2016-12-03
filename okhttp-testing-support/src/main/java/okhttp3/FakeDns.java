@@ -25,33 +25,34 @@ import java.util.List;
 import static org.junit.Assert.assertEquals;
 
 public final class FakeDns implements Dns {
-  private List<String> requestedHosts = new ArrayList<>();
-  private List<InetAddress> addresses = Collections.emptyList();
+    private List<String> requestedHosts = new ArrayList<>();
+    private List<InetAddress> addresses = Collections.emptyList();
 
-  /** Sets the addresses to be returned by this fake DNS service. */
-  public FakeDns addresses(List<InetAddress> addresses) {
-    this.addresses = new ArrayList<>(addresses);
-    return this;
-  }
+    /** Sets the addresses to be returned by this fake DNS service. */
+    public FakeDns addresses(List<InetAddress> addresses) {
+        this.addresses = new ArrayList<>(addresses);
+        return this;
+    }
 
-  /** Sets the service to throw when a hostname is requested. */
-  public FakeDns unknownHost() {
-    this.addresses = Collections.emptyList();
-    return this;
-  }
+    /** Sets the service to throw when a hostname is requested. */
+    public FakeDns unknownHost() {
+        this.addresses = Collections.emptyList();
+        return this;
+    }
 
-  public InetAddress address(int index) {
-    return addresses.get(index);
-  }
+    public InetAddress address(int index) {
+        return addresses.get(index);
+    }
 
-  @Override public List<InetAddress> lookup(String hostname) throws UnknownHostException {
-    requestedHosts.add(hostname);
-    if (addresses.isEmpty()) throw new UnknownHostException();
-    return addresses;
-  }
+    @Override
+    public List<InetAddress> lookup(String hostname) throws UnknownHostException {
+        requestedHosts.add(hostname);
+        if (addresses.isEmpty()) throw new UnknownHostException();
+        return addresses;
+    }
 
-  public void assertRequests(String... expectedHosts) {
-    assertEquals(Arrays.asList(expectedHosts), requestedHosts);
-    requestedHosts.clear();
-  }
+    public void assertRequests(String... expectedHosts) {
+        assertEquals(Arrays.asList(expectedHosts), requestedHosts);
+        requestedHosts.clear();
+    }
 }

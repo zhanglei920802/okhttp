@@ -16,6 +16,7 @@
 package okhttp3.internal.huc;
 
 import java.io.IOException;
+
 import okhttp3.internal.http.UnrepeatableRequestBody;
 import okio.Buffer;
 import okio.BufferedSink;
@@ -27,16 +28,17 @@ import okio.Pipe;
  * pipe. Because the data is not buffered it can only be transmitted once.
  */
 final class StreamedRequestBody extends OutputStreamRequestBody implements UnrepeatableRequestBody {
-  private final Pipe pipe = new Pipe(8192);
+    private final Pipe pipe = new Pipe(8192);
 
-  StreamedRequestBody(long expectedContentLength) {
-    initOutputStream(Okio.buffer(pipe.sink()), expectedContentLength);
-  }
-
-  @Override public void writeTo(BufferedSink sink) throws IOException {
-    Buffer buffer = new Buffer();
-    while (pipe.source().read(buffer, 8192) != -1L) {
-      sink.write(buffer, buffer.size());
+    StreamedRequestBody(long expectedContentLength) {
+        initOutputStream(Okio.buffer(pipe.sink()), expectedContentLength);
     }
-  }
+
+    @Override
+    public void writeTo(BufferedSink sink) throws IOException {
+        Buffer buffer = new Buffer();
+        while (pipe.source().read(buffer, 8192) != -1L) {
+            sink.write(buffer, buffer.size());
+        }
+    }
 }

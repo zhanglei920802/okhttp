@@ -16,32 +16,35 @@
 package okhttp3.internal.connection;
 
 import java.io.IOException;
+
 import org.junit.Test;
 
 import static org.junit.Assert.assertSame;
 
 public class RouteExceptionTest {
 
-  @Test public void getConnectionIOException_single() {
-    IOException firstException = new IOException();
-    RouteException re = new RouteException(firstException);
-    assertSame(firstException, re.getLastConnectException());
-  }
+    @Test
+    public void getConnectionIOException_single() {
+        IOException firstException = new IOException();
+        RouteException re = new RouteException(firstException);
+        assertSame(firstException, re.getLastConnectException());
+    }
 
-  @Test public void getConnectionIOException_multiple() {
-    IOException firstException = new IOException();
-    IOException secondException = new IOException();
-    IOException thirdException = new IOException();
-    RouteException re = new RouteException(firstException);
-    re.addConnectException(secondException);
-    re.addConnectException(thirdException);
+    @Test
+    public void getConnectionIOException_multiple() {
+        IOException firstException = new IOException();
+        IOException secondException = new IOException();
+        IOException thirdException = new IOException();
+        RouteException re = new RouteException(firstException);
+        re.addConnectException(secondException);
+        re.addConnectException(thirdException);
 
-    IOException connectionIOException = re.getLastConnectException();
-    assertSame(thirdException, connectionIOException);
-    Throwable[] thirdSuppressedExceptions = thirdException.getSuppressed();
-    assertSame(secondException, thirdSuppressedExceptions[0]);
+        IOException connectionIOException = re.getLastConnectException();
+        assertSame(thirdException, connectionIOException);
+        Throwable[] thirdSuppressedExceptions = thirdException.getSuppressed();
+        assertSame(secondException, thirdSuppressedExceptions[0]);
 
-    Throwable[] secondSuppressedException = secondException.getSuppressed();
-    assertSame(firstException, secondSuppressedException[0]);
-  }
+        Throwable[] secondSuppressedException = secondException.getSuppressed();
+        assertSame(firstException, secondSuppressedException[0]);
+    }
 }

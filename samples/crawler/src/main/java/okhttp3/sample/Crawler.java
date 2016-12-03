@@ -25,6 +25,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
+
 import okhttp3.Cache;
 import okhttp3.HttpUrl;
 import okhttp3.MediaType;
@@ -32,6 +33,7 @@ import okhttp3.OkHttpClient;
 import okhttp3.Request;
 import okhttp3.Response;
 import okhttp3.internal.NamedRunnable;
+
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -40,100 +42,101 @@ import org.jsoup.nodes.Element;
  * Fetches HTML from a requested URL, follows the links, and repeats.
  */
 public final class Crawler {
-  private final OkHttpClient client;
-  private final Set<HttpUrl> fetchedUrls = Collections.synchronizedSet(
-      new LinkedHashSet<HttpUrl>());
-  private final LinkedBlockingQueue<HttpUrl> queue = new LinkedBlockingQueue<>();
-  private final ConcurrentHashMap<String, AtomicInteger> hostnames = new ConcurrentHashMap<>();
+    private final OkHttpClient client;
+    private final Set<HttpUrl> fetchedUrls = Collections.synchronizedSet(
+            new LinkedHashSet<HttpUrl>());
+    private final LinkedBlockingQueue<HttpUrl> queue = new LinkedBlockingQueue<>();
+    private final ConcurrentHashMap<String, AtomicInteger> hostnames = new ConcurrentHashMap<>();
 
-  public Crawler(OkHttpClient client) {
-    this.client = client;
-  }
+    public Crawler(OkHttpClient client) {
+        this.client = client;
+    }
 
-  private void parallelDrainQueue(int threadCount) {
-    ExecutorService executor = Executors.newFixedThreadPool(threadCount);
-    for (int i = 0; i < threadCount; i++) {
-      executor.execute(new NamedRunnable("Crawler %s", i) {
-        @Override protected void execute() {
-          try {
-            drainQueue();
-          } catch (Exception e) {
-            e.printStackTrace();
-          }
+    private void parallelDrainQueue(int threadCount) {
+        ExecutorService executor = Executors.newFixedThreadPool(threadCount);
+        for (int i = 0; i < threadCount; i++) {
+            executor.execute(new NamedRunnable("Crawler %s", i) {
+                @Override
+                protected void execute() {
+                    try {
+                        drainQueue();
+                    } catch (Exception e) {
+                        e.printStackTrace();
+                    }
+                }
+            });
         }
-      });
-    }
-    executor.shutdown();
-  }
-
-  private void drainQueue() throws Exception {
-    for (HttpUrl url; (url = queue.take()) != null; ) {
-      if (!fetchedUrls.add(url)) {
-        continue;
-      }
-
-      try {
-        fetch(url);
-      } catch (IOException e) {
-        System.out.printf("XXX: %s %s%n", url, e);
-      }
-    }
-  }
-
-  public void fetch(HttpUrl url) throws IOException {
-    // Skip hosts that we've visited many times.
-    AtomicInteger hostnameCount = new AtomicInteger();
-    AtomicInteger previous = hostnames.putIfAbsent(url.host(), hostnameCount);
-    if (previous != null) hostnameCount = previous;
-    if (hostnameCount.incrementAndGet() > 100) return;
-
-    Request request = new Request.Builder()
-        .url(url)
-        .build();
-    Response response = client.newCall(request).execute();
-    String responseSource = response.networkResponse() != null
-        ? ("(network: " + response.networkResponse().code() + " over " + response.protocol() + ")")
-        : "(cache)";
-    int responseCode = response.code();
-
-    System.out.printf("%03d: %s %s%n", responseCode, url, responseSource);
-
-    String contentType = response.header("Content-Type");
-    if (responseCode != 200 || contentType == null) {
-      response.body().close();
-      return;
+        executor.shutdown();
     }
 
-    MediaType mediaType = MediaType.parse(contentType);
-    if (mediaType == null || !mediaType.subtype().equalsIgnoreCase("html")) {
-      response.body().close();
-      return;
+    private void drainQueue() throws Exception {
+        for (HttpUrl url; (url = queue.take()) != null; ) {
+            if (!fetchedUrls.add(url)) {
+                continue;
+            }
+
+            try {
+                fetch(url);
+            } catch (IOException e) {
+                System.out.printf("XXX: %s %s%n", url, e);
+            }
+        }
     }
 
-    Document document = Jsoup.parse(response.body().string(), url.toString());
-    for (Element element : document.select("a[href]")) {
-      String href = element.attr("href");
-      HttpUrl link = response.request().url().resolve(href);
-      if (link != null) queue.add(link);
+    public void fetch(HttpUrl url) throws IOException {
+        // Skip hosts that we've visited many times.
+        AtomicInteger hostnameCount = new AtomicInteger();
+        AtomicInteger previous = hostnames.putIfAbsent(url.host(), hostnameCount);
+        if (previous != null) hostnameCount = previous;
+        if (hostnameCount.incrementAndGet() > 100) return;
+
+        Request request = new Request.Builder()
+                .url(url)
+                .build();
+        Response response = client.newCall(request).execute();
+        String responseSource = response.networkResponse() != null
+                ? ("(network: " + response.networkResponse().code() + " over " + response.protocol() + ")")
+                : "(cache)";
+        int responseCode = response.code();
+
+        System.out.printf("%03d: %s %s%n", responseCode, url, responseSource);
+
+        String contentType = response.header("Content-Type");
+        if (responseCode != 200 || contentType == null) {
+            response.body().close();
+            return;
+        }
+
+        MediaType mediaType = MediaType.parse(contentType);
+        if (mediaType == null || !mediaType.subtype().equalsIgnoreCase("html")) {
+            response.body().close();
+            return;
+        }
+
+        Document document = Jsoup.parse(response.body().string(), url.toString());
+        for (Element element : document.select("a[href]")) {
+            String href = element.attr("href");
+            HttpUrl link = response.request().url().resolve(href);
+            if (link != null) queue.add(link);
+        }
     }
-  }
 
-  public static void main(String[] args) throws IOException {
-    if (args.length != 2) {
-      System.out.println("Usage: Crawler <cache dir> <root>");
-      return;
+    public static void main(String[] args) throws IOException {
+        if (args.length != 2) {
+            System.out.println("Usage: Crawler <cache dir> <root>");
+            return;
+        }
+
+        int threadCount = 20;
+        long cacheByteCount = 1024L * 1024L * 100L;
+
+        Cache cache = new Cache(new File(args[0]), cacheByteCount);
+        OkHttpClient client = new OkHttpClient.Builder()
+                .cache(cache)
+                .build();
+
+        Crawler crawler = new Crawler(client);
+        crawler.queue.add(HttpUrl.parse(args[1]));
+        crawler.parallelDrainQueue(threadCount);
     }
-
-    int threadCount = 20;
-    long cacheByteCount = 1024L * 1024L * 100L;
-
-    Cache cache = new Cache(new File(args[0]), cacheByteCount);
-    OkHttpClient client = new OkHttpClient.Builder()
-        .cache(cache)
-        .build();
-
-    Crawler crawler = new Crawler(client);
-    crawler.queue.add(HttpUrl.parse(args[1]));
-    crawler.parallelDrainQueue(threadCount);
-  }
 }

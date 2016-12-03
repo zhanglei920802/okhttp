@@ -27,20 +27,22 @@ import java.util.List;
 import java.util.Map;
 
 public class AbstractResponseCache extends ResponseCache {
-  @Override public CacheResponse get(URI uri, String requestMethod,
-      Map<String, List<String>> requestHeaders) throws IOException {
-    return null;
-  }
-
-  @Override public CacheRequest put(URI uri, URLConnection connection) throws IOException {
-    return null;
-  }
-
-  public static URI toUri(URL serverUrl) {
-    try {
-      return serverUrl.toURI();
-    } catch (URISyntaxException e) {
-      throw new AssertionError(e);
+    @Override
+    public CacheResponse get(URI uri, String requestMethod,
+            Map<String, List<String>> requestHeaders) throws IOException {
+        return null;
     }
-  }
+
+    @Override
+    public CacheRequest put(URI uri, URLConnection connection) throws IOException {
+        return null;
+    }
+
+    public static URI toUri(URL serverUrl) {
+        try {
+            return serverUrl.toURI();
+        } catch (URISyntaxException e) {
+            throw new AssertionError(e);
+        }
+    }
 }

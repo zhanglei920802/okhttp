@@ -25,12 +25,14 @@ import java.net.URI;
 import java.net.URLConnection;
 import java.util.List;
 import java.util.Map;
+
 import okhttp3.AndroidInternal;
 import okhttp3.HttpUrl;
 import okhttp3.OkHttpClient;
 import okhttp3.OkUrlFactory;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
+
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Rule;
@@ -48,128 +50,140 @@ import static org.junit.Assert.fail;
  * A port of Android's android.net.http.HttpResponseCacheTest to JUnit4.
  */
 public final class HttpResponseCacheTest {
-  @Rule public TemporaryFolder cacheRule = new TemporaryFolder();
-  @Rule public MockWebServer server = new MockWebServer();
+    @Rule
+    public TemporaryFolder cacheRule = new TemporaryFolder();
+    @Rule
+    public MockWebServer server = new MockWebServer();
 
-  private File cacheDir;
-  private OkUrlFactory urlFactory;
+    private File cacheDir;
+    private OkUrlFactory urlFactory;
 
-  @Before public void setUp() throws Exception {
-    cacheDir = cacheRule.getRoot();
-    urlFactory = new OkUrlFactory(new OkHttpClient());
-  }
-
-  @After public void tearDown() throws Exception {
-    ResponseCache.setDefault(null);
-  }
-
-  @Test public void install() throws Exception {
-    HttpResponseCache installed = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    assertNotNull(installed);
-    assertSame(installed, ResponseCache.getDefault());
-    assertSame(installed, HttpResponseCache.getDefault());
-  }
-
-  @Test public void secondEquivalentInstallDoesNothing() throws Exception {
-    HttpResponseCache first = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    HttpResponseCache another = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    assertSame(first, another);
-  }
-
-  @Test public void installClosesPreviouslyInstalled() throws Exception {
-    HttpResponseCache first = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    initializeCache(first);
-
-    HttpResponseCache another = HttpResponseCache.install(cacheDir, 8 * 1024 * 1024);
-    initializeCache(another);
-
-    assertNotSame(first, another);
-    try {
-      first.flush();
-      fail();
-    } catch (IllegalStateException expected) {
+    @Before
+    public void setUp() throws Exception {
+        cacheDir = cacheRule.getRoot();
+        urlFactory = new OkUrlFactory(new OkHttpClient());
     }
-  }
 
-  @Test public void getInstalledWithWrongTypeInstalled() {
-    ResponseCache.setDefault(new ResponseCache() {
-      @Override
-      public CacheResponse get(URI uri, String requestMethod,
-          Map<String, List<String>> requestHeaders) {
-        return null;
-      }
-
-      @Override
-      public CacheRequest put(URI uri, URLConnection connection) {
-        return null;
-      }
-    });
-    assertNull(HttpResponseCache.getInstalled());
-  }
-
-  @Test public void closeCloses() throws Exception {
-    HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    initializeCache(cache);
-
-    cache.close();
-    try {
-      cache.flush();
-      fail();
-    } catch (IllegalStateException expected) {
+    @After
+    public void tearDown() throws Exception {
+        ResponseCache.setDefault(null);
     }
-  }
 
-  @Test public void closeUninstalls() throws Exception {
-    HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    cache.close();
-    assertNull(ResponseCache.getDefault());
-  }
+    @Test
+    public void install() throws Exception {
+        HttpResponseCache installed = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        assertNotNull(installed);
+        assertSame(installed, ResponseCache.getDefault());
+        assertSame(installed, HttpResponseCache.getDefault());
+    }
 
-  @Test public void deleteUninstalls() throws Exception {
-    HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
-    cache.delete();
-    assertNull(ResponseCache.getDefault());
-  }
+    @Test
+    public void secondEquivalentInstallDoesNothing() throws Exception {
+        HttpResponseCache first = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        HttpResponseCache another = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        assertSame(first, another);
+    }
 
-  /**
-   * Make sure that statistics tracking are wired all the way through the wrapper class.
-   * http://code.google.com/p/android/issues/detail?id=25418
-   */
-  @Test public void statisticsTracking() throws Exception {
-    HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+    @Test
+    public void installClosesPreviouslyInstalled() throws Exception {
+        HttpResponseCache first = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        initializeCache(first);
 
-    server.enqueue(new MockResponse()
-        .addHeader("Cache-Control: max-age=60")
-        .setBody("A"));
+        HttpResponseCache another = HttpResponseCache.install(cacheDir, 8 * 1024 * 1024);
+        initializeCache(another);
 
-    URLConnection c1 = openUrl(server.url("/"));
+        assertNotSame(first, another);
+        try {
+            first.flush();
+            fail();
+        } catch (IllegalStateException expected) {
+        }
+    }
 
-    InputStream inputStream = c1.getInputStream();
-    assertEquals('A', inputStream.read());
-    inputStream.close();
-    assertEquals(1, cache.getRequestCount());
-    assertEquals(1, cache.getNetworkCount());
-    assertEquals(0, cache.getHitCount());
+    @Test
+    public void getInstalledWithWrongTypeInstalled() {
+        ResponseCache.setDefault(new ResponseCache() {
+            @Override
+            public CacheResponse get(URI uri, String requestMethod,
+                    Map<String, List<String>> requestHeaders) {
+                return null;
+            }
 
-    URLConnection c2 = openUrl(server.url("/"));
-    assertEquals('A', c2.getInputStream().read());
+            @Override
+            public CacheRequest put(URI uri, URLConnection connection) {
+                return null;
+            }
+        });
+        assertNull(HttpResponseCache.getInstalled());
+    }
 
-    URLConnection c3 = openUrl(server.url("/"));
-    assertEquals('A', c3.getInputStream().read());
-    assertEquals(3, cache.getRequestCount());
-    assertEquals(1, cache.getNetworkCount());
-    assertEquals(2, cache.getHitCount());
-  }
+    @Test
+    public void closeCloses() throws Exception {
+        HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        initializeCache(cache);
 
-  // This mimics the Android HttpHandler, which is found in the okhttp3 package.
-  private URLConnection openUrl(HttpUrl url) {
-    ResponseCache responseCache = ResponseCache.getDefault();
-    AndroidInternal.setResponseCache(urlFactory, responseCache);
-    return urlFactory.open(url.url());
-  }
+        cache.close();
+        try {
+            cache.flush();
+            fail();
+        } catch (IllegalStateException expected) {
+        }
+    }
 
-  private void initializeCache(HttpResponseCache cache) {
-    // Ensure the cache is initialized, otherwise various methods are no-ops.
-    cache.size();
-  }
+    @Test
+    public void closeUninstalls() throws Exception {
+        HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        cache.close();
+        assertNull(ResponseCache.getDefault());
+    }
+
+    @Test
+    public void deleteUninstalls() throws Exception {
+        HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+        cache.delete();
+        assertNull(ResponseCache.getDefault());
+    }
+
+    /**
+     * Make sure that statistics tracking are wired all the way through the wrapper class.
+     * http://code.google.com/p/android/issues/detail?id=25418
+     */
+    @Test
+    public void statisticsTracking() throws Exception {
+        HttpResponseCache cache = HttpResponseCache.install(cacheDir, 10 * 1024 * 1024);
+
+        server.enqueue(new MockResponse()
+                .addHeader("Cache-Control: max-age=60")
+                .setBody("A"));
+
+        URLConnection c1 = openUrl(server.url("/"));
+
+        InputStream inputStream = c1.getInputStream();
+        assertEquals('A', inputStream.read());
+        inputStream.close();
+        assertEquals(1, cache.getRequestCount());
+        assertEquals(1, cache.getNetworkCount());
+        assertEquals(0, cache.getHitCount());
+
+        URLConnection c2 = openUrl(server.url("/"));
+        assertEquals('A', c2.getInputStream().read());
+
+        URLConnection c3 = openUrl(server.url("/"));
+        assertEquals('A', c3.getInputStream().read());
+        assertEquals(3, cache.getRequestCount());
+        assertEquals(1, cache.getNetworkCount());
+        assertEquals(2, cache.getHitCount());
+    }
+
+    // This mimics the Android HttpHandler, which is found in the okhttp3 package.
+    private URLConnection openUrl(HttpUrl url) {
+        ResponseCache responseCache = ResponseCache.getDefault();
+        AndroidInternal.setResponseCache(urlFactory, responseCache);
+        return urlFactory.open(url.url());
+    }
+
+    private void initializeCache(HttpResponseCache cache) {
+        // Ensure the cache is initialized, otherwise various methods are no-ops.
+        cache.size();
+    }
 }

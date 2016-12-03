@@ -19,8 +19,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
+
 import okhttp3.HttpUrl;
 import okhttp3.internal.tls.SslClient;
+
 import org.apache.http.Header;
 import org.apache.http.HttpResponse;
 import org.apache.http.client.HttpClient;
@@ -33,52 +35,54 @@ import org.apache.http.impl.conn.PoolingClientConnectionManager;
 
 /** Benchmark Apache HTTP client. */
 class ApacheHttpClient extends SynchronousHttpClient {
-  private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = false;
 
-  private HttpClient client;
+    private HttpClient client;
 
-  @Override public void prepare(Benchmark benchmark) {
-    super.prepare(benchmark);
-    ClientConnectionManager connectionManager = new PoolingClientConnectionManager();
-    if (benchmark.tls) {
-      SslClient sslClient = SslClient.localhost();
-      connectionManager.getSchemeRegistry().register(
-          new Scheme("https", 443, new SSLSocketFactory(sslClient.sslContext)));
-    }
-    client = new DefaultHttpClient(connectionManager);
-  }
-
-  @Override public Runnable request(HttpUrl url) {
-    return new ApacheHttpClientRequest(url);
-  }
-
-  class ApacheHttpClientRequest implements Runnable {
-    private final HttpUrl url;
-
-    public ApacheHttpClientRequest(HttpUrl url) {
-      this.url = url;
+    @Override
+    public void prepare(Benchmark benchmark) {
+        super.prepare(benchmark);
+        ClientConnectionManager connectionManager = new PoolingClientConnectionManager();
+        if (benchmark.tls) {
+            SslClient sslClient = SslClient.localhost();
+            connectionManager.getSchemeRegistry().register(
+                    new Scheme("https", 443, new SSLSocketFactory(sslClient.sslContext)));
+        }
+        client = new DefaultHttpClient(connectionManager);
     }
 
-    public void run() {
-      long start = System.nanoTime();
-      try {
-        HttpResponse response = client.execute(new HttpGet(url.toString()));
-        InputStream in = response.getEntity().getContent();
-        Header contentEncoding = response.getFirstHeader("Content-Encoding");
-        if (contentEncoding != null && contentEncoding.getValue().equals("gzip")) {
-          in = new GZIPInputStream(in);
+    @Override
+    public Runnable request(HttpUrl url) {
+        return new ApacheHttpClientRequest(url);
+    }
+
+    class ApacheHttpClientRequest implements Runnable {
+        private final HttpUrl url;
+
+        public ApacheHttpClientRequest(HttpUrl url) {
+            this.url = url;
         }
 
-        long total = readAllAndClose(in);
-        long finish = System.nanoTime();
+        public void run() {
+            long start = System.nanoTime();
+            try {
+                HttpResponse response = client.execute(new HttpGet(url.toString()));
+                InputStream in = response.getEntity().getContent();
+                Header contentEncoding = response.getFirstHeader("Content-Encoding");
+                if (contentEncoding != null && contentEncoding.getValue().equals("gzip")) {
+                    in = new GZIPInputStream(in);
+                }
 
-        if (VERBOSE) {
-          System.out.println(String.format("Transferred % 8d bytes in %4d ms",
-              total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
+                long total = readAllAndClose(in);
+                long finish = System.nanoTime();
+
+                if (VERBOSE) {
+                    System.out.println(String.format("Transferred % 8d bytes in %4d ms",
+                            total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
+                }
+            } catch (IOException e) {
+                System.out.println("Failed: " + e);
+            }
         }
-      } catch (IOException e) {
-        System.out.println("Failed: " + e);
-      }
     }
-  }
 }

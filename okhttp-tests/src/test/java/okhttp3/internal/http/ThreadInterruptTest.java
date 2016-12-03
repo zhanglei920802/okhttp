@@ -23,8 +23,10 @@ import java.net.HttpURLConnection;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.util.concurrent.TimeUnit;
+
 import javax.net.ServerSocketFactory;
 import javax.net.SocketFactory;
+
 import okhttp3.DelegatingServerSocketFactory;
 import okhttp3.DelegatingSocketFactory;
 import okhttp3.OkHttpClient;
@@ -32,6 +34,7 @@ import okhttp3.OkUrlFactory;
 import okhttp3.mockwebserver.MockResponse;
 import okhttp3.mockwebserver.MockWebServer;
 import okio.Buffer;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -40,98 +43,102 @@ import static org.junit.Assert.fail;
 
 public final class ThreadInterruptTest {
 
-  // The size of the socket buffers in bytes.
-  private static final int SOCKET_BUFFER_SIZE = 256 * 1024;
+    // The size of the socket buffers in bytes.
+    private static final int SOCKET_BUFFER_SIZE = 256 * 1024;
 
-  private MockWebServer server;
-  private OkHttpClient client;
+    private MockWebServer server;
+    private OkHttpClient client;
 
-  @Before public void setUp() throws Exception {
-    // Sockets on some platforms can have large buffers that mean writes do not block when
-    // required. These socket factories explicitly set the buffer sizes on sockets created.
-    server = new MockWebServer();
-    server.setServerSocketFactory(
-        new DelegatingServerSocketFactory(ServerSocketFactory.getDefault()) {
-          @Override
-          protected ServerSocket configureServerSocket(ServerSocket serverSocket)
-              throws IOException {
-            serverSocket.setReceiveBufferSize(SOCKET_BUFFER_SIZE);
-            return serverSocket;
-          }
-        });
-    client = defaultClient().newBuilder()
-        .socketFactory(new DelegatingSocketFactory(SocketFactory.getDefault()) {
-          @Override
-          protected Socket configureSocket(Socket socket) throws IOException {
-            socket.setSendBufferSize(SOCKET_BUFFER_SIZE);
-            socket.setReceiveBufferSize(SOCKET_BUFFER_SIZE);
-            return socket;
-          }
-        })
-        .build();
-  }
-
-  @Test public void interruptWritingRequestBody() throws Exception {
-    int requestBodySize = 2 * 1024 * 1024; // 2 MiB
-
-    server.enqueue(new MockResponse()
-        .throttleBody(64 * 1024, 125, TimeUnit.MILLISECONDS)); // 500 Kbps
-    server.start();
-
-    interruptLater(500);
-
-    HttpURLConnection connection = new OkUrlFactory(client).open(server.url("/").url());
-    connection.setDoOutput(true);
-    connection.setFixedLengthStreamingMode(requestBodySize);
-    OutputStream requestBody = connection.getOutputStream();
-    byte[] buffer = new byte[1024];
-    try {
-      for (int i = 0; i < requestBodySize; i += buffer.length) {
-        requestBody.write(buffer);
-        requestBody.flush();
-      }
-      fail("Expected thread to be interrupted");
-    } catch (InterruptedIOException expected) {
+    @Before
+    public void setUp() throws Exception {
+        // Sockets on some platforms can have large buffers that mean writes do not block when
+        // required. These socket factories explicitly set the buffer sizes on sockets created.
+        server = new MockWebServer();
+        server.setServerSocketFactory(
+                new DelegatingServerSocketFactory(ServerSocketFactory.getDefault()) {
+                    @Override
+                    protected ServerSocket configureServerSocket(ServerSocket serverSocket)
+                            throws IOException {
+                        serverSocket.setReceiveBufferSize(SOCKET_BUFFER_SIZE);
+                        return serverSocket;
+                    }
+                });
+        client = defaultClient().newBuilder()
+                                .socketFactory(new DelegatingSocketFactory(SocketFactory.getDefault()) {
+                                    @Override
+                                    protected Socket configureSocket(Socket socket) throws IOException {
+                                        socket.setSendBufferSize(SOCKET_BUFFER_SIZE);
+                                        socket.setReceiveBufferSize(SOCKET_BUFFER_SIZE);
+                                        return socket;
+                                    }
+                                })
+                                .build();
     }
 
-    connection.disconnect();
-  }
+    @Test
+    public void interruptWritingRequestBody() throws Exception {
+        int requestBodySize = 2 * 1024 * 1024; // 2 MiB
 
-  @Test public void interruptReadingResponseBody() throws Exception {
-    int responseBodySize = 2 * 1024 * 1024; // 2 MiB
+        server.enqueue(new MockResponse()
+                .throttleBody(64 * 1024, 125, TimeUnit.MILLISECONDS)); // 500 Kbps
+        server.start();
 
-    server.enqueue(new MockResponse()
-        .setBody(new Buffer().write(new byte[responseBodySize]))
-        .throttleBody(64 * 1024, 125, TimeUnit.MILLISECONDS)); // 500 Kbps
-    server.start();
+        interruptLater(500);
 
-    interruptLater(500);
-
-    HttpURLConnection connection = new OkUrlFactory(client).open(server.url("/").url());
-    InputStream responseBody = connection.getInputStream();
-    byte[] buffer = new byte[1024];
-    try {
-      while (responseBody.read(buffer) != -1) {
-      }
-      fail("Expected thread to be interrupted");
-    } catch (InterruptedIOException expected) {
-    }
-
-    responseBody.close();
-  }
-
-  private void interruptLater(final int delayMillis) {
-    final Thread toInterrupt = Thread.currentThread();
-    Thread interruptingCow = new Thread() {
-      @Override public void run() {
+        HttpURLConnection connection = new OkUrlFactory(client).open(server.url("/").url());
+        connection.setDoOutput(true);
+        connection.setFixedLengthStreamingMode(requestBodySize);
+        OutputStream requestBody = connection.getOutputStream();
+        byte[] buffer = new byte[1024];
         try {
-          sleep(delayMillis);
-          toInterrupt.interrupt();
-        } catch (InterruptedException e) {
-          throw new RuntimeException(e);
+            for (int i = 0; i < requestBodySize; i += buffer.length) {
+                requestBody.write(buffer);
+                requestBody.flush();
+            }
+            fail("Expected thread to be interrupted");
+        } catch (InterruptedIOException expected) {
         }
-      }
-    };
-    interruptingCow.start();
-  }
+
+        connection.disconnect();
+    }
+
+    @Test
+    public void interruptReadingResponseBody() throws Exception {
+        int responseBodySize = 2 * 1024 * 1024; // 2 MiB
+
+        server.enqueue(new MockResponse()
+                .setBody(new Buffer().write(new byte[responseBodySize]))
+                .throttleBody(64 * 1024, 125, TimeUnit.MILLISECONDS)); // 500 Kbps
+        server.start();
+
+        interruptLater(500);
+
+        HttpURLConnection connection = new OkUrlFactory(client).open(server.url("/").url());
+        InputStream responseBody = connection.getInputStream();
+        byte[] buffer = new byte[1024];
+        try {
+            while (responseBody.read(buffer) != -1) {
+            }
+            fail("Expected thread to be interrupted");
+        } catch (InterruptedIOException expected) {
+        }
+
+        responseBody.close();
+    }
+
+    private void interruptLater(final int delayMillis) {
+        final Thread toInterrupt = Thread.currentThread();
+        Thread interruptingCow = new Thread() {
+            @Override
+            public void run() {
+                try {
+                    sleep(delayMillis);
+                    toInterrupt.interrupt();
+                } catch (InterruptedException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        };
+        interruptingCow.start();
+    }
 }

@@ -39,156 +39,168 @@ import io.netty.handler.codec.http.HttpResponse;
 import io.netty.handler.codec.http.HttpVersion;
 import io.netty.handler.codec.http.LastHttpContent;
 import io.netty.handler.ssl.SslHandler;
+
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.concurrent.TimeUnit;
+
 import javax.net.ssl.SSLEngine;
+
 import okhttp3.HttpUrl;
 import okhttp3.internal.tls.SslClient;
 
 /** Netty isn't an HTTP client, but it's almost one. */
 class NettyHttpClient implements HttpClient {
-  private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = false;
 
-  // Guarded by this. Real apps need more capable connection management.
-  private final Deque<HttpChannel> freeChannels = new ArrayDeque<>();
-  private final Deque<HttpUrl> backlog = new ArrayDeque<>();
+    // Guarded by this. Real apps need more capable connection management.
+    private final Deque<HttpChannel> freeChannels = new ArrayDeque<>();
+    private final Deque<HttpUrl> backlog = new ArrayDeque<>();
 
-  private int totalChannels = 0;
-  private int concurrencyLevel;
-  private int targetBacklog;
-  private Bootstrap bootstrap;
+    private int totalChannels = 0;
+    private int concurrencyLevel;
+    private int targetBacklog;
+    private Bootstrap bootstrap;
 
-  @Override public void prepare(final Benchmark benchmark) {
-    this.concurrencyLevel = benchmark.concurrencyLevel;
-    this.targetBacklog = benchmark.targetBacklog;
+    @Override
+    public void prepare(final Benchmark benchmark) {
+        this.concurrencyLevel = benchmark.concurrencyLevel;
+        this.targetBacklog = benchmark.targetBacklog;
 
-    ChannelInitializer<SocketChannel> channelInitializer = new ChannelInitializer<SocketChannel>() {
-      @Override public void initChannel(SocketChannel channel) throws Exception {
-        ChannelPipeline pipeline = channel.pipeline();
+        ChannelInitializer<SocketChannel> channelInitializer = new ChannelInitializer<SocketChannel>() {
+            @Override
+            public void initChannel(SocketChannel channel) throws Exception {
+                ChannelPipeline pipeline = channel.pipeline();
 
-        if (benchmark.tls) {
-          SslClient sslClient = SslClient.localhost();
-          SSLEngine engine = sslClient.sslContext.createSSLEngine();
-          engine.setUseClientMode(true);
-          pipeline.addLast("ssl", new SslHandler(engine));
+                if (benchmark.tls) {
+                    SslClient sslClient = SslClient.localhost();
+                    SSLEngine engine = sslClient.sslContext.createSSLEngine();
+                    engine.setUseClientMode(true);
+                    pipeline.addLast("ssl", new SslHandler(engine));
+                }
+
+                pipeline.addLast("codec", new HttpClientCodec());
+                pipeline.addLast("inflater", new HttpContentDecompressor());
+                pipeline.addLast("handler", new HttpChannel(channel));
+            }
+        };
+
+        bootstrap = new Bootstrap();
+        bootstrap.group(new NioEventLoopGroup(concurrencyLevel))
+                 .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
+                 .channel(NioSocketChannel.class)
+                 .handler(channelInitializer);
+    }
+
+    @Override
+    public void enqueue(HttpUrl url) throws Exception {
+        HttpChannel httpChannel = null;
+        synchronized (this) {
+            if (!freeChannels.isEmpty()) {
+                httpChannel = freeChannels.pop();
+            }
+            else if (totalChannels < concurrencyLevel) {
+                totalChannels++; // Create a new channel. (outside of the synchronized block).
+            }
+            else {
+                backlog.add(url); // Enqueue this for later, to be picked up when another request completes.
+                return;
+            }
+        }
+        if (httpChannel == null) {
+            Channel channel = bootstrap.connect(url.host(), url.port())
+                                       .sync().channel();
+            httpChannel = (HttpChannel) channel.pipeline().last();
+        }
+        httpChannel.sendRequest(url);
+    }
+
+    @Override
+    public synchronized boolean acceptingJobs() {
+        return backlog.size() < targetBacklog || hasFreeChannels();
+    }
+
+    private boolean hasFreeChannels() {
+        int activeChannels = totalChannels - freeChannels.size();
+        return activeChannels < concurrencyLevel;
+    }
+
+    private void release(HttpChannel httpChannel) {
+        HttpUrl url;
+        synchronized (this) {
+            url = backlog.pop();
+            if (url == null) {
+                // There were no URLs in the backlog. Pool this channel for later.
+                freeChannels.push(httpChannel);
+                return;
+            }
         }
 
-        pipeline.addLast("codec", new HttpClientCodec());
-        pipeline.addLast("inflater", new HttpContentDecompressor());
-        pipeline.addLast("handler", new HttpChannel(channel));
-      }
-    };
-
-    bootstrap = new Bootstrap();
-    bootstrap.group(new NioEventLoopGroup(concurrencyLevel))
-        .option(ChannelOption.ALLOCATOR, PooledByteBufAllocator.DEFAULT)
-        .channel(NioSocketChannel.class)
-        .handler(channelInitializer);
-  }
-
-  @Override public void enqueue(HttpUrl url) throws Exception {
-    HttpChannel httpChannel = null;
-    synchronized (this) {
-      if (!freeChannels.isEmpty()) {
-        httpChannel = freeChannels.pop();
-      } else if (totalChannels < concurrencyLevel) {
-        totalChannels++; // Create a new channel. (outside of the synchronized block).
-      } else {
-        backlog.add(url); // Enqueue this for later, to be picked up when another request completes.
-        return;
-      }
-    }
-    if (httpChannel == null) {
-      Channel channel = bootstrap.connect(url.host(), url.port())
-          .sync().channel();
-      httpChannel = (HttpChannel) channel.pipeline().last();
-    }
-    httpChannel.sendRequest(url);
-  }
-
-  @Override public synchronized boolean acceptingJobs() {
-    return backlog.size() < targetBacklog || hasFreeChannels();
-  }
-
-  private boolean hasFreeChannels() {
-    int activeChannels = totalChannels - freeChannels.size();
-    return activeChannels < concurrencyLevel;
-  }
-
-  private void release(HttpChannel httpChannel) {
-    HttpUrl url;
-    synchronized (this) {
-      url = backlog.pop();
-      if (url == null) {
-        // There were no URLs in the backlog. Pool this channel for later.
-        freeChannels.push(httpChannel);
-        return;
-      }
+        // We removed a URL from the backlog. Schedule it right away.
+        httpChannel.sendRequest(url);
     }
 
-    // We removed a URL from the backlog. Schedule it right away.
-    httpChannel.sendRequest(url);
-  }
+    class HttpChannel extends SimpleChannelInboundHandler<HttpObject> {
+        private final SocketChannel channel;
+        byte[] buffer = new byte[1024];
+        int total;
+        long start;
 
-  class HttpChannel extends SimpleChannelInboundHandler<HttpObject> {
-    private final SocketChannel channel;
-    byte[] buffer = new byte[1024];
-    int total;
-    long start;
-
-    public HttpChannel(SocketChannel channel) {
-      this.channel = channel;
-    }
-
-    private void sendRequest(HttpUrl url) {
-      start = System.nanoTime();
-      total = 0;
-      HttpRequest request = new DefaultFullHttpRequest(
-          HttpVersion.HTTP_1_1, HttpMethod.GET, url.encodedPath());
-      request.headers().set(HttpHeaders.Names.HOST, url.host());
-      request.headers().set(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
-      channel.writeAndFlush(request);
-    }
-
-    @Override protected void channelRead0(
-        ChannelHandlerContext context, HttpObject message) throws Exception {
-      if (message instanceof HttpResponse) {
-        receive((HttpResponse) message);
-      }
-      if (message instanceof HttpContent) {
-        receive((HttpContent) message);
-        if (message instanceof LastHttpContent) {
-          release(this);
+        public HttpChannel(SocketChannel channel) {
+            this.channel = channel;
         }
-      }
-    }
 
-    @Override public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-      super.channelInactive(ctx);
-    }
+        private void sendRequest(HttpUrl url) {
+            start = System.nanoTime();
+            total = 0;
+            HttpRequest request = new DefaultFullHttpRequest(
+                    HttpVersion.HTTP_1_1, HttpMethod.GET, url.encodedPath());
+            request.headers().set(HttpHeaders.Names.HOST, url.host());
+            request.headers().set(HttpHeaders.Names.ACCEPT_ENCODING, HttpHeaders.Values.GZIP);
+            channel.writeAndFlush(request);
+        }
 
-    void receive(HttpResponse response) {
-      // Don't do anything with headers.
-    }
+        @Override
+        protected void channelRead0(
+                ChannelHandlerContext context, HttpObject message) throws Exception {
+            if (message instanceof HttpResponse) {
+                receive((HttpResponse) message);
+            }
+            if (message instanceof HttpContent) {
+                receive((HttpContent) message);
+                if (message instanceof LastHttpContent) {
+                    release(this);
+                }
+            }
+        }
 
-    void receive(HttpContent content) {
-      // Consume the response body.
-      ByteBuf byteBuf = content.content();
-      for (int toRead; (toRead = byteBuf.readableBytes()) > 0; ) {
-        byteBuf.readBytes(buffer, 0, Math.min(buffer.length, toRead));
-        total += toRead;
-      }
+        @Override
+        public void channelInactive(ChannelHandlerContext ctx) throws Exception {
+            super.channelInactive(ctx);
+        }
 
-      if (VERBOSE && content instanceof LastHttpContent) {
-        long finish = System.nanoTime();
-        System.out.println(String.format("Transferred % 8d bytes in %4d ms",
-            total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
-      }
-    }
+        void receive(HttpResponse response) {
+            // Don't do anything with headers.
+        }
 
-    @Override public void exceptionCaught(ChannelHandlerContext context, Throwable cause) {
-      System.out.println("Failed: " + cause);
+        void receive(HttpContent content) {
+            // Consume the response body.
+            ByteBuf byteBuf = content.content();
+            for (int toRead; (toRead = byteBuf.readableBytes()) > 0; ) {
+                byteBuf.readBytes(buffer, 0, Math.min(buffer.length, toRead));
+                total += toRead;
+            }
+
+            if (VERBOSE && content instanceof LastHttpContent) {
+                long finish = System.nanoTime();
+                System.out.println(String.format("Transferred % 8d bytes in %4d ms",
+                        total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
+            }
+        }
+
+        @Override
+        public void exceptionCaught(ChannelHandlerContext context, Throwable cause) {
+            System.out.println("Failed: " + cause);
+        }
     }
-  }
 }

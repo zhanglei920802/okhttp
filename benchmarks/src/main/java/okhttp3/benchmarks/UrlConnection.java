@@ -20,61 +20,66 @@ import java.io.InputStream;
 import java.net.HttpURLConnection;
 import java.util.concurrent.TimeUnit;
 import java.util.zip.GZIPInputStream;
+
 import javax.net.ssl.HostnameVerifier;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLSession;
 import javax.net.ssl.SSLSocketFactory;
+
 import okhttp3.HttpUrl;
 import okhttp3.internal.tls.SslClient;
 
 class UrlConnection extends SynchronousHttpClient {
-  private static final boolean VERBOSE = false;
+    private static final boolean VERBOSE = false;
 
-  @Override public void prepare(Benchmark benchmark) {
-    super.prepare(benchmark);
-    if (benchmark.tls) {
-      SslClient sslClient = SslClient.localhost();
-      SSLSocketFactory socketFactory = sslClient.socketFactory;
-      HostnameVerifier hostnameVerifier = new HostnameVerifier() {
-        @Override public boolean verify(String s, SSLSession session) {
-          return true;
+    @Override
+    public void prepare(Benchmark benchmark) {
+        super.prepare(benchmark);
+        if (benchmark.tls) {
+            SslClient sslClient = SslClient.localhost();
+            SSLSocketFactory socketFactory = sslClient.socketFactory;
+            HostnameVerifier hostnameVerifier = new HostnameVerifier() {
+                @Override
+                public boolean verify(String s, SSLSession session) {
+                    return true;
+                }
+            };
+            HttpsURLConnection.setDefaultHostnameVerifier(hostnameVerifier);
+            HttpsURLConnection.setDefaultSSLSocketFactory(socketFactory);
         }
-      };
-      HttpsURLConnection.setDefaultHostnameVerifier(hostnameVerifier);
-      HttpsURLConnection.setDefaultSSLSocketFactory(socketFactory);
-    }
-  }
-
-  @Override public Runnable request(HttpUrl url) {
-    return new UrlConnectionRequest(url);
-  }
-
-  static class UrlConnectionRequest implements Runnable {
-    private final HttpUrl url;
-
-    public UrlConnectionRequest(HttpUrl url) {
-      this.url = url;
     }
 
-    public void run() {
-      long start = System.nanoTime();
-      try {
-        HttpURLConnection urlConnection = (HttpURLConnection) url.url().openConnection();
-        InputStream in = urlConnection.getInputStream();
-        if ("gzip".equals(urlConnection.getHeaderField("Content-Encoding"))) {
-          in = new GZIPInputStream(in);
-        }
-
-        long total = readAllAndClose(in);
-        long finish = System.nanoTime();
-
-        if (VERBOSE) {
-          System.out.println(String.format("Transferred % 8d bytes in %4d ms",
-              total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
-        }
-      } catch (IOException e) {
-        System.out.println("Failed: " + e);
-      }
+    @Override
+    public Runnable request(HttpUrl url) {
+        return new UrlConnectionRequest(url);
     }
-  }
+
+    static class UrlConnectionRequest implements Runnable {
+        private final HttpUrl url;
+
+        public UrlConnectionRequest(HttpUrl url) {
+            this.url = url;
+        }
+
+        public void run() {
+            long start = System.nanoTime();
+            try {
+                HttpURLConnection urlConnection = (HttpURLConnection) url.url().openConnection();
+                InputStream in = urlConnection.getInputStream();
+                if ("gzip".equals(urlConnection.getHeaderField("Content-Encoding"))) {
+                    in = new GZIPInputStream(in);
+                }
+
+                long total = readAllAndClose(in);
+                long finish = System.nanoTime();
+
+                if (VERBOSE) {
+                    System.out.println(String.format("Transferred % 8d bytes in %4d ms",
+                            total, TimeUnit.NANOSECONDS.toMillis(finish - start)));
+                }
+            } catch (IOException e) {
+                System.out.println("Failed: " + e);
+            }
+        }
+    }
 }

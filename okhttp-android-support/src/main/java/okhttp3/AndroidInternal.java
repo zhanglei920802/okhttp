@@ -16,6 +16,7 @@
 package okhttp3;
 
 import java.net.ResponseCache;
+
 import okhttp3.internal.huc.CacheAdapter;
 
 /**
@@ -25,21 +26,22 @@ import okhttp3.internal.huc.CacheAdapter;
  */
 public class AndroidInternal {
 
-  private AndroidInternal() {
-  }
-
-  /** Sets the response cache to be used to read and write cached responses. */
-  public static void setResponseCache(OkUrlFactory okUrlFactory, ResponseCache responseCache) {
-    OkHttpClient.Builder builder = okUrlFactory.client().newBuilder();
-    if (responseCache instanceof OkCacheContainer) {
-      // Avoid adding layers of wrappers. Rather than wrap the ResponseCache in yet another layer to
-      // make the ResponseCache look like an InternalCache, we can unwrap the Cache instead.
-      // This means that Cache stats will be correctly updated.
-      OkCacheContainer okCacheContainer = (OkCacheContainer) responseCache;
-      builder.cache(okCacheContainer.getCache());
-    } else {
-      builder.setInternalCache(responseCache != null ? new CacheAdapter(responseCache) : null);
+    private AndroidInternal() {
     }
-    okUrlFactory.setClient(builder.build());
-  }
+
+    /** Sets the response cache to be used to read and write cached responses. */
+    public static void setResponseCache(OkUrlFactory okUrlFactory, ResponseCache responseCache) {
+        OkHttpClient.Builder builder = okUrlFactory.client().newBuilder();
+        if (responseCache instanceof OkCacheContainer) {
+            // Avoid adding layers of wrappers. Rather than wrap the ResponseCache in yet another layer to
+            // make the ResponseCache look like an InternalCache, we can unwrap the Cache instead.
+            // This means that Cache stats will be correctly updated.
+            OkCacheContainer okCacheContainer = (OkCacheContainer) responseCache;
+            builder.cache(okCacheContainer.getCache());
+        }
+        else {
+            builder.setInternalCache(responseCache != null ? new CacheAdapter(responseCache) : null);
+        }
+        okUrlFactory.setClient(builder.build());
+    }
 }

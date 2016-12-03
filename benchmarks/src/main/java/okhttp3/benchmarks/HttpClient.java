@@ -19,9 +19,9 @@ import okhttp3.HttpUrl;
 
 /** An HTTP client to benchmark. */
 interface HttpClient {
-  void prepare(Benchmark benchmark);
+    void prepare(Benchmark benchmark);
 
-  void enqueue(HttpUrl url) throws Exception;
+    void enqueue(HttpUrl url) throws Exception;
 
-  boolean acceptingJobs();
+    boolean acceptingJobs();
 }
